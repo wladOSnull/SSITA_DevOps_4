@@ -547,6 +547,310 @@ AWS -> [amazon](https://calculator.aws/#/addService)
 
 Oracle -> [oracle](https://www.oracle.com/cloud/costestimator.html)
 
+## MongoDB
+
+Current stable version of MongoDB is 5.0 and this one supports Debian 9-10 only. So this is installation for GCP instance with Debian 10
+
+  ```bash
+  # fix Debian locales
+  ~ if ! grep -q "export LC_ALL=C" ~/.bashrc; then
+      echo -e "\n# quick fix locale issue \nexport LC_ALL=C" >> ~/.bashrc
+      . ~/.bashrc
+      echo -e "\n.bashrc was modified -> Debian locales error fixed \n"
+  fi
+
+  # system update
+  ~ sudo apt update && sudo apt upgrade -y
+
+  # get some base tools
+  ~ sudo apt install wget
+
+
+  # get repo key
+  ~ wget -qO - https://www.mongodb.org/static/pgp/server-5.0.asc | sudo apt-key add -
+
+  # add repo
+  ~ echo "deb http://repo.mongodb.org/apt/debian buster/mongodb-org/5.0 main" | sudo tee /etc/apt/sources.list.d/mongodb-org-5.0.list
+
+  # update cache
+  ~ sudo apt update
+
+  # install MongoDB
+  ~ sudo apt-get install -y mongodb-org
+
+  # enable & check MongoDB 
+  ~ sudo systemctl enable --now mongod.service
+  ~ sudo sysctl status mongod.service
+  ```
+
+Base info about MongoDB Shell -> [devopedia](https://devopedia.org/mongodb-query-language)
+
+## Icinga2
+
+Icinga is a monitoring system which checks the availability of your network resources, notifies users of outages, and generates performance data for reporting. Icinga 2 is the monitoring server and requires Icinga Web 2 on top in your Icinga Stack. Icinga2 demands installed LAMP also.
+
+Guide for installation/configuration of IcingaWeb2 -> [linoxide](https://linoxide.com/how-to-install-icinga2-on-ubuntu/)
+
+### LAMP
+
+LAMP - for Linux, Apache, MySQL/MariaDB, PHP/Perl/Python
+XAMPP - for cross-platform, Apache, MySQL/MariaDB, PHP and Perl,
+
+Installation of LAMP stack
+
+  ```bash
+  ### Linux
+  ~ sudo apt update && sudo apt -y upgrade
+  
+  ### Apache
+  ~ sudo apt install -y apache2
+  ~ sudo systemctl enable --now apache2 
+
+  ### MariadDB
+  ~ sudo apt install -y mariadb-server mariadb-client
+  ~ sudo systemctl enable --now mariadb
+
+  # MariaDB configuring
+  ~ sudo mysql_secure_installation
+  
+  # answer for 'mysql_secure_installation' script configurator
+  Enter current password for root (enter for none): <empty-enter>
+  Set root password? [Y/n] Y
+  : <enter-new-pass>
+  : <re-enter-new-pass>
+  Remove anonymous users? [Y/n] Y
+  Disallow root login remotely? [Y/n] Y
+  Remove test database and access to it? [Y/n] Y
+  Reload privilege tables now? [Y/n] Y
+
+  # now MariaDB is setted up, to login into DB use this command
+  ~ sudo mysql -u root
+
+  ### PHP 7.4
+  # DO NOT USE 8.1 version, IcingaWeb2 will not work !!!
+  ~ sudo apt install -y \
+      lsb-release \
+      ca-certificates \
+      apt-transport-https \
+      software-properties-common \
+      gnupg2
+
+  ~ echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/sury-php.list
+  ~ wget -qO - https://packages.sury.org/php/apt.gpg | sudo apt-key add -
+  ~ sudo apt update
+
+  ~ sudo apt install -y \
+      php7.4 \
+      php-curl \
+      php-gd \
+      php-mbstring \
+      php-xml \
+      php-xmlrpc \
+      php-soap \
+      php-intl \
+      php-zip \
+      php-cli \
+      php-mysql \
+      php7.4-common \
+      php7.4-opcache \
+      php-gmp \
+      php-imagick
+
+  ~ sudo sed -i 's/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/g' \
+      /etc/php/7.4/apache2/php.ini
+  ```
+
+### Icinga2
+
+Now we need to install and configure Icinga2 server
+
+- installation of the Icinga2 (Debian in this case)
+
+  ```bash
+  ~ sudo wget -O - https://packages.icinga.com/icinga.key | sudo apt-key add -
+  ~ DIST=$(awk -F"[)(]+" '/VERSION=/ {print $2}' /etc/os-release);
+  ~ echo \
+      "deb https://packages.icinga.com/debian icinga-${DIST} main
+      deb-src https://packages.icinga.com/debian icinga-${DIST} main" \
+    | sudo tee /etc/apt/sources.list.d/${DIST}-icinga.list
+  ~ sudo apt update
+
+  # enter 'No' for 'Samba server and utilities' (window on 'monitoring-plugins' installation step)
+  ~ sudo apt install -y \
+      icinga2 \
+      icingacli \
+      monitoring-plugins \
+      libapache2-mod-php
+  # 1 window - yes
+  # 2 windows - no
+  ~ sudo apt install -y icinga2-ido-mysql 
+  ```
+
+- configure MariaDB for Icinga2 metrics store (IDO geature)
+
+  ```bash
+  ~ sudo mysql -u root -p
+  ```
+
+  ```sql
+  CREATE DATABASE icinga2db;
+  GRANT ALL ON icinga2db.* TO 'icinga2user'@'localhost' IDENTIFIED BY 'icinpass';
+  FLUSH PRIVILEGES;
+  EXIT;  
+  ```
+
+  ```bash
+  ~ sudo mysql -u root -p icinga2db < /usr/share/icinga2-ido-mysql/schema/mysql.sql 
+
+  # change in this file user, pass and db name acccording to previous MariaDB configurations
+  ~ sudo nano  /etc/icinga2/features-available/ido-mysql.conf
+
+  ~ sudo icinga2 feature enable ido-mysql
+  ```
+
+### Icinga2 Web
+
+Installation guide for web interface
+
+- install Icingaweb2
+
+  ```bash
+  ~ sudo apt install icingaweb2
+  ```
+
+- configure MariaDB for web
+
+  ```bash
+  ~ sudo mysql -u root -p
+  ```
+
+  ```sql
+  CREATE DATABASE icingaweb2;
+  GRANT ALL ON icingaweb2.* TO 'icingaweb2user'@'localhost' IDENTIFIED BY 'icinwebpass';
+  FLUSH PRIVILEGES;
+  EXIT;
+  ```
+
+- generate web token
+
+  ```bash
+  ~ sudo icingacli setup token create
+  ~ sudo icingacli setup token show
+  ```
+
+- visit <http://ip:80/icingaweb2setup> and use generated token
+
+- follow simple setup ... (use main  guide from [linoxide](https://linoxide.com/how-to-install-icinga2-on-ubuntu/) - Step 7)
+
+  - on page 'Modules' you can see some missing modules (php modules)
+
+    ```bash
+    # to install some modules
+    ~ sudo apt install php-<module_name>
+
+    # check list of installed modules
+    ~ php -m
+
+    ### some modules needs to be 'loaded'
+    # check if module is enabled
+    ~ sudo a2query -m <module_name>
+
+    # 'load' module
+    ~ sudo a2enmod <module_name>
+
+    # reload Apache2 neccessarily !
+    ~ sudo systemctl restart apache2.service
+    ```
+
+### Icinga2 Master node
+
+Configure VM with IcingaWeb2
+
+- configure the VM as 'Master node'
+
+  ```bash
+  ~ sudo icinga2 node wizard
+
+  Please specify if this is an agent/satellite setup ('n' installs a master setup) [Y/n]: n
+  Please specify the common name (CN) [mongodb.us-central1-a.c.helical-history-342218.internal]: mongodb
+  Master zone name [master]: master
+  Do you want to specify additional global zones? [y/N]: N
+  Please specify the API bind host/port (optional):
+  Bind Host []: 
+  Bind Port []: 
+  Do you want to disable the inclusion of the conf.d directory [Y/n]: Y
+
+  ~ sudo systemctl restart icinga2.service
+  ```
+
+- create 'ticket' in 'Master node' for 'Satellite/Agent node'
+
+  ```bash
+  # this command wiil give you a ticket ID for conection (from sattelite/agent to master)
+  ~ sudo icinga2 pki ticket --cn '<hostname-of-agent-machine>'
+  ```
+
+### Icinga2 Agent node
+
+Configure some machine as Icinga2 'Agent node'
+
+- install icinga2 (Ubuntu in this case)
+
+  ```bash
+  ~ sudo wget -O - https://packages.icinga.com/icinga.key | sudo apt-key add -
+  ~ . /etc/os-release; 
+    if [ ! -z ${UBUNTU_CODENAME+x} ]; 
+    then DIST="${UBUNTU_CODENAME}"; 
+    else DIST="$(lsb_release -c| awk '{print $2}')"; 
+    fi;
+
+  echo \
+    "deb https://packages.icinga.com/ubuntu icinga-${DIST} main
+    deb-src https://packages.icinga.com/ubuntu icinga-${DIST} main" \
+    | sudo tee /etc/apt/sources.list.d/${DIST}-icinga.list
+
+  ~ sudo apt update
+
+  ~ sudo apt install -y icinga2
+  ```
+
+- configure the machine as 'Agent node'
+
+  ```bash
+  ~ sudo icinga2 node wizard 
+  
+  Please specify if this is an agent/satellite setup ('n' installs a master setup) [Y/n]: Y
+  Please specify the common name (CN) [server.us-central1-a.c.helical-history-342218.internal]: server
+  Master/Satellite Common Name (CN from your master/satellite node): mongodb
+  Do you want to establish a connection to the parent node from this node? [Y/n]: Y
+  Master/Satellite endpoint host (IP address or FQDN): <ip-of-master-node>
+  Master/Satellite endpoint port [5665]: 5665
+  Add more master/satellite endpoints? [y/N]: N
+
+  <almost immidiately you will get info about master node certification if there is no problem with firewall>
+
+  Is this information correct? [y/N]: y
+
+  Please specify the request ticket generated on your Icinga 2 master (optional).
+  (Hint: icinga2 pki ticket --cn 'server'): <ticket-ID-generated-on-master-node-for-this-node>
+  Please specify the API bind host/port (optional):
+  Bind Host []: 
+  Bind Port []: 
+  Accept config from parent node? [y/N]: y
+  Accept commands from parent node? [y/N]: y
+
+  Local zone name [server]: master
+  Parent zone name [master]: master
+
+  Do you want to specify additional global zones? [y/N]: N
+
+  Do you want to disable the inclusion of the conf.d directory [Y/n]: Y
+  
+  ~ sudo systemctl restart icinga2.service
+  ```
+
+
+
 ## Appendix
 
 ### Maven and Bash
@@ -666,70 +970,3 @@ Base k8s yaml file explanation -> [Kubernetes](https://kubernetes.io/docs/concep
 - kind -> [medium](https://chkrishna.medium.com/kubernetes-objects-e0a8b93b5cdc)
 
 - spec -> [kubernetes](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
-
-
-apiVer
-
-behavior:
-  scaleDown:
-    stabilizationWindowSeconds: 300
-    policies:
-    - type: Percent
-      value: 100
-      periodSeconds: 15
-  scaleUp:
-    stabilizationWindowSeconds: 0
-    policies:
-    - type: Percent
-      value: 100
-      periodSeconds: 15
-    - type: Pods
-      value: 4
-      periodSeconds: 15
-    selectPolicy: Max
-
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: php-apache
-spec:
-  selector:
-    matchLabels:
-      run: php-apache
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        run: php-apache
-    spec:
-      containers:
-      - name: php-apache
-        image: k8s.gcr.io/hpa-example
-        ports:
-        - containerPort: 80
-        resources:
-          limits:
-            cpu: 500m
-          requests:
-            cpu: 200m    
-
-
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: autoscaler-geocitizen
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: geocitizen
-  minReplicas: 2
-  maxReplicas: 4
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 75            

@@ -1,0 +1,69 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geocitizen
+  namespace: demo-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geo
+  template:
+    metadata:
+      labels:
+        app: geo
+    spec:
+      imagePullSecrets:
+      - name: docker-wladosnull
+      containers:
+      - name: geocitizen
+        image: wladosnull/repo:k8s
+        ports:
+        - containerPort: 8888
+#          hostPort: 8080
+          protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geocitizen-service
+  namespace: demo-1
+spec:
+  type: NodePort
+  selector:
+    app: geo
+  ports:
+  - name: supervisor
+    protocol: TCP
+    port: 9001
+    targetPort: 9001
+    nodePort: 30003
+
+  - name: tomcat
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+    nodePort: 30002
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: autoscaler-geocitizen
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: geocitizen
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75 
+...

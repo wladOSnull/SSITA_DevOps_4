@@ -197,7 +197,7 @@ sed -i '/<plugins>/a \
 
 echo -e "\n##################################################\nAdd entrypoints for SonarQube\n##################################################\n"
 
-#SONAR_TOKEN="38e2926d14bc0832371ef9477925a681f133a80c"
+#SONAR_TOKEN="XXXXXXXXXXXXXXXXXXXXXXXXX"
 
 awk '{print} /<dependencies>/ && !n {print "\
 \n\
